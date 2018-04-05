@@ -1,0 +1,6 @@
+
+*.class
+/AutoMCLCTAlgorithm/nbproject/private/
+/AutoMCLCTAlgorithm/build/classes/
+
+/AutoMCLCTAlgorithm/dist/
