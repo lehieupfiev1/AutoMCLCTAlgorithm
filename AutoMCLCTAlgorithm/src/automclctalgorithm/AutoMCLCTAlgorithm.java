@@ -33,7 +33,7 @@ public class AutoMCLCTAlgorithm {
         MCLCTAlgorithm algorithm = new MCLCTAlgorithm();
         //initData();
         //Chay test case tu 6 den 10
-        for (int i = 6; i <= 6; i++) {
+        for (int i = 14; i <= 14; i++) {
             try {
                 //Cai dat ten File
                 String filename = "test"+i+".INP";
@@ -56,12 +56,12 @@ public class AutoMCLCTAlgorithm {
             }
         }
         System.out.println("Running Finish ");
-        JOptionPane.showMessageDialog(null, "Compare Algorithm run finished !");
+        JOptionPane.showMessageDialog(null, "Compare MCLCT Algorithm run finished !");
     }
     
     static double calculateTotalTime() {
         double totalTime =0;
-        for (int i = 0; i < mListofListSensor.size(); i++) {
+        for (int i = 0; i < mListofListTime.size(); i++) {
             Double next = mListofListTime.get(i);
             totalTime+=next;
         }

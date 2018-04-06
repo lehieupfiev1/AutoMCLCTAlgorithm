@@ -27,17 +27,11 @@ public class MCLCTAlgorithm {
     double mTimeLife;
     float Rs, Rc;// Rs and Rt value
     int MaxHopper;
-    List<Integer> EECCcnt;   
-    List<List<Integer>> NDEECCcnt;
     List<Double> listTime;
-    List<HeuristicItem> Cov_Heuristic;
-    List<HeuristicItem> Connect_Heuristic;
-    List<Integer> ListNcs ;// Tap list sensing node
-    List<Integer> CurrentHopper;
-    List<Integer> temp_hopper;
-    List<Integer> previous_hopper;
-    List<Integer> ListNcr ; // Tap list relaying node
+    List<Double> mListTimeLife;
+    List<List<List<Integer>>> mListAllResultPath;
     float ListEnergySensor[];
+    float ListEnergyUse[];
     int MAX_INTERGER = 100000000;
     float MAX_FLOAT = 10000000000000.0f;
     float TimeStamp ;
@@ -49,11 +43,13 @@ public class MCLCTAlgorithm {
     int N;//Number sensor
     int TP; // Total points (Contain Sensor , Sink, Target )
     int T;//Number of Tagert Nodes
-    
-    
+
     public MCLCTAlgorithm() {
         
     }
+     
+    
+    
     
     public void run() {
 
@@ -68,20 +64,12 @@ public class MCLCTAlgorithm {
         freeData();
     }
     
-    
     public  void init() {
 
-        NDEECCcnt = new ArrayList<List<Integer>>();
-        Cov_Heuristic = new ArrayList<>();
-        Connect_Heuristic = new ArrayList<>();
-        ListNcs = new ArrayList<>();
-        ListNcr = new ArrayList<>();
-        CurrentHopper = new ArrayList<>();
         listTime = new ArrayList<>();
-        temp_hopper = new ArrayList<>();
-        previous_hopper = new ArrayList<>();
-        
-        
+        mListAllResultPath = new ArrayList<>();
+        mListTimeLife = new ArrayList<>();
+
     }
 
     public  void readData() {
@@ -110,12 +98,14 @@ public class MCLCTAlgorithm {
         //Add to Total Point;
         Point = new float[TP+1][2];
         ListEnergySensor = new float[N];
+        ListEnergyUse = new float[N];
 
         for (int i =0; i < mListSensorNodes.size();i++) {
             Point[i][0] = mListSensorNodes.get(i).getX();
             Point[i][1] = mListSensorNodes.get(i).getY();
             //Add Energy for every node
             ListEnergySensor[i] = SensorUtility.mEoValue;
+            ListEnergyUse[i] = 0;
         }
         
         for (int i =0; i < mListTargetNodes.size();i++) {
@@ -139,7 +129,7 @@ public class MCLCTAlgorithm {
             }
         }
          
-         //Caculate Mindistance form sensor to Sink
+        //Caculate Mindistance form sensor to Sink
         MinDistanceSink = new float[N];
         float min;
         for (int i =0; i<N ;i++) {
@@ -161,10 +151,7 @@ public class MCLCTAlgorithm {
     
     
     public void runAlgorithm() {
-
         // Calculate Covering Heuristic
-        List<Integer> listRelaySensor = new ArrayList<>();
-        List<Integer> listSensingSensor = new ArrayList<>();
         List<Integer> listSensor = new ArrayList<>();
         for (int i = 0; i < mListSensorNodes.size(); i++) {
             listSensor.add(i);
@@ -177,394 +164,163 @@ public class MCLCTAlgorithm {
         for (int i = 0; i < mListSinkNodes.size(); i++) {
             listSink.add(i);
         }
+        //Calculate ListIu and listSa
 
-        //Bat dau vong lap
-        boolean isTerminal = false;
-        do {
-            //Update listRelaySensor and sensing node
-            listRelaySensor.clear();
-            listSensingSensor.clear();
-            for (int i = 0; i < listSensor.size(); i++) {
-               listRelaySensor.add(listSensor.get(i));
-            }
-            for (int i =0; i < listSensor.size();i++) {
-                for (int j = 0 ; j < listTarget.size(); j++) {
-                    if (Distance[listSensor.get(i)][N+listTarget.get(j)] <= Rs) {
-                        listSensingSensor.add(listSensor.get(i));
-                        break;
+        List<CoverageItem> mListIu = CalculateListIu(listSensor, listTarget);
+
+        List<Integer> mListSa = findListSa(listSensor, mListIu);
+        showViewTest(mListSa);
+        List<List<Integer>> mListDs = Coverage_Optimizing_RecursiveHeuristic(mListSa, listTarget, mListIu);
+        System.out.println("List Ds :"  +" sizeCi ="+mListDs.size());
+        //Only test
+        for (int i = 0; i < mListDs.size(); i++) {
+            List<Integer> tempList = mListDs.get(i);
+            showViewTest(tempList);
+            int a = 0;
+
+        }
+        List<Integer> mListSrsd = findListSrsd(mListDs, listSensor);
+
+        //Vong lap lay tung Ci
+        for (int i = 0; i < mListDs.size(); i++) {
+            //Get list Ci
+            List<Integer> mListCi = mListDs.get(i);
+            System.out.println();
+            System.out.println("List C"+i+ "  sizeNode ="+mListCi.size());
+            //test
+            showViewTest(mListCi);
+            
+            while (CheckListCoverAllTarget(mListCi, mListIu, listTarget)) {
+                
+                List<List<Integer>> mListPath = CalculatePathConnection2(mListCi, mListSrsd);
+                if (mListPath.isEmpty()) {
+                    break;
+                }
+
+                //Calculate energy for path
+                //reset Energy usse
+                List<Integer> tempListSensor = FindListSensorInAllPath(mListPath);
+                for (int k = 0; k < N; k++) {
+                    ListEnergyUse[i] = 0;
+                }
+                //Calculate eneruse for 
+                for (int j = 0; j < tempListSensor.size(); j++) {
+                    int idSen = tempListSensor.get(j);
+                    ListEnergyUse[idSen] = CaculateEnergyConsume(mListPath, idSen);
+                }
+                // Find minListEnerUse
+                boolean isEnoughtEnergy = checkEnoughEnergy(tempListSensor, ListEnergyUse);
+
+                if (isEnoughtEnergy) {
+                    for (int j = 0; j < tempListSensor.size(); j++) {
+                        int idSensor = tempListSensor.get(j);
+                        ListEnergySensor[idSensor] -= (SensorUtility.mUnitTime * ListEnergyUse[idSensor]);
+                    }
+                    //Add to List result
+                    mListAllResultPath.add(mListPath);
+                    mListTimeLife.add((double) SensorUtility.mUnitTime);
+
+                }
+
+                //Update List Srd and list Ci
+                List<Integer> ListSensorLoss = new ArrayList<>();
+                List<Integer> ListPLoss;
+                for (int j = 0; j < tempListSensor.size(); j++) {
+                    int idSensor = tempListSensor.get(j);
+                    float temp = ListEnergySensor[idSensor] - (SensorUtility.mUnitTime * ListEnergyUse[idSensor]);
+                    if (temp < 0) {
+                        boolean exitInSrd = removeNodeFromList(mListSrsd, idSensor);
+                        boolean exitInCi = removeNodeFromList(mListCi, idSensor);
+                        if (exitInCi) {
+                            ListSensorLoss.add(idSensor);
+                        }
                     }
                 }
-            }
-            
-            // ------------------Tinh list sensor cover Target------------------------------------
-            Calculate_Cov_Heuristic(listTarget, listSensingSensor, Cov_Heuristic);
-            Collections.sort(Cov_Heuristic, new Comparator<HeuristicItem>() {
-                @Override
-                public int compare(HeuristicItem o1, HeuristicItem o2) {
-                    float distance1 = o1.getValue();
-                    float distance2 = o2.getValue();
-                    return Float.compare(distance2, distance1);
-                }
-            });
 
-            //Calculate EECCcnt set
-            boolean isCorvering = false;
-            int hasCover = 0;
-            EECCcnt = new ArrayList<>();
-            while (!isCorvering && !Cov_Heuristic.isEmpty()) {
-                int maxSvalue = Cov_Heuristic.get(0).getId();
-                EECCcnt.add(maxSvalue);
-                int ratio = Calculate_Coverage_Ratio(EECCcnt, listTarget);
-                if (ratio > hasCover) {
-                    hasCover = ratio;
-                } else {
-                    EECCcnt.remove(EECCcnt.size() - 1);
-                }
-                Cov_Heuristic.remove(0);
-                if (ratio == listTarget.size()) {
-                    isCorvering = true;
-                }
-
-            }
-
-            //Check is not covering 
-            if (!isCorvering) {
-                return;
-            }
-
-            
-            //Test 
-
-            List<Integer> listStart = new ArrayList<>();
-            for (int i = 0; i < EECCcnt.size(); i++) {
-                listStart.add(EECCcnt.get(i));
-            }
-            //showViewTest(listStart);
-            
-            ListNcs.clear();
-            int count;
-            for (int i = 0; i < EECCcnt.size(); i++) {
-                count = 0;
-                for (int j = 0; j < listSink.size(); j++) {
-                    if (Distance[EECCcnt.get(i)][N + T + listSink.get(j)] <= Rc) {
-                        break;
-                    } else {
-                        count++;
-                    }
-                }
-                if (count == listSink.size()) {
-                    ListNcs.add(EECCcnt.get(i));
-                }
-                
-            }
-
-            //showViewTest(ListNcs);
-            //-----------------------Tinh list Sensor den cac sink--------------------------------------------
-
-            // Vong lap tim Connect Node
-            boolean isConectivity = false;
-//            List<Integer> listNearSink = new ArrayList<>();
-//            listNearSink.clear();
-
-            
-            boolean isFirstConectivity = false;
-            if (ListNcs.size() == 0) {
-                isConectivity = true;
-                isFirstConectivity = true;
-            } else {
-
-                Find_Current_Hoppers(listRelaySensor, listSink, ListNcr, CurrentHopper,ListNcs);
-                //Them temp_hopper
-                temp_hopper.clear();
-                for (int i =0; i< ListNcs.size();i++) {
-                    temp_hopper.add(ListNcs.get(i));
-                }
-                showViewTest(CurrentHopper);
-                
-                //Tao list Check Covering LisNCS
-                int numberOfIterations = 0;
-                boolean IsCover[] = new boolean[listStart.size()];
-                for (int j = 0; j < listStart.size();j++) IsCover[j] = false;
-                
-                
-                while (!isConectivity && !ListNcr.isEmpty() && !CurrentHopper.isEmpty() && numberOfIterations < MaxHopper) {
-                    previous_hopper.clear();
-                    for (int i =0; i< temp_hopper.size();i++) {
-                        previous_hopper.add(temp_hopper.get(i));
-                    }
-                    Calculate_Connect_Heuristic(listRelaySensor, listSink, CurrentHopper, ListNcs, ListNcr, Connect_Heuristic,previous_hopper);
-
-                    temp_hopper.clear();
+                //Update to ListCi if have loss
+                if (!ListSensorLoss.isEmpty()) {
+                    ListPLoss = findPloss(mListCi, mListIu, listTarget);
+                    List<Integer> listW = findCOR_Heuristic_Utilized_CovRecovery(mListSrsd, mListIu, ListPLoss, ListSensorLoss);
                     
-                    //Sort Connect Heuristic
-                    Collections.sort(Connect_Heuristic, new Comparator<HeuristicItem>() {
-                        @Override
-                        public int compare(HeuristicItem o1, HeuristicItem o2) {
-                            float distance1 = o1.getValue();
-                            float distance2 = o2.getValue();
-                            return Float.compare(distance2, distance1);
-                        }
-                    });
-
-                    //test
-                    List<Integer> testSensor = new ArrayList<>();
-                    for (int i = 0; i < Connect_Heuristic.size(); i++) {
-                        testSensor.add(Connect_Heuristic.get(i).getId());
-                    }
-                    //showViewTest(testSensor);
-
-                    //Lay tung phan tu cua Connect Heuristic 
-                    while (!Connect_Heuristic.isEmpty()) {
-                        int selected_sensor = Connect_Heuristic.get(0).getId();
-                        
-                        if (!CheckNodeExit(EECCcnt, selected_sensor)) {
-                            temp_hopper.add(selected_sensor);
-                            EECCcnt.add(selected_sensor);
-//                            if (numberOfIterations == 0) {
-//                                listNearSink.add(selected_sensor);
-//                            }
-                            //Add check
-                            if (CheckConectivity(listStart, IsCover, EECCcnt)) {
-                                //showViewTest(listNearSink);
-                                isConectivity = true;
-                                break;
-                            } else {
-                                isConectivity = false;
-                            }
-
-                        }
-                        //Remove max heurius
-                        Connect_Heuristic.remove(0);
-                        int a = 5;
-
-                    }
-                    //Check lai
-                    if (!isConectivity) {
-                        if (CurrentHopper.isEmpty() || ListNcr.isEmpty()) {
-                            return;
-
-                        } else {
-                            // Khoi tao next Hopper
-                            numberOfIterations++;
-                            List<Integer> next_hopper = Hop_Finder(ListNcr, temp_hopper);
-
-                            CurrentHopper = next_hopper;
-                            //showViewTest(CurrentHopper);
-                            int a = 5;
+                    //Add listW to Ci
+                    for (int j =0; j < listW.size(); j ++) {
+                        int idS = listW.get(j);
+                        if (!CheckExitInList(mListCi ,idS)) {
+                            mListCi.add(idS);
                         }
                     }
-
                 }
             }
             
-            if (isConectivity) {
-                //Calculate Eneergy
-                NDEECCcnt.add(EECCcnt);
-                //showViewTest(EECCcnt);
-                //Create ListECRi : nang luong tieu hao
-                float listEcri[] = new float[N];
-                for (int i = 0;i <listEcri.length;i++ ) {
-                    listEcri[i] = 0.0f;
+            //Update List Srd with node remain of Ci
+            for (int k = 0; k < mListCi.size(); k++) {
+                int idCi = mListCi.get(k);
+                if (!CheckExitInList(mListSrsd,idCi)) {
+                    mListSrsd.add(idCi);
                 }
-                //Add ListNearsink
-                if (isFirstConectivity) {
-//                    for (int i = 0; i< listStart.size() ;i++) {
-//                        for (int j = 0 ;j < listSink.size();j++) {
-//                            if (Distance[listStart.get(i)][N+T+listSink.get(j)] <= Rc) {
-//                                listNearSink.add(listStart.get(i));
-//                                break;
-//                            }
-//                        }
-//                        
-//                    }
-                }
-                
-                float L = LifeCycle(EECCcnt,ListEnergySensor,listEcri,listStart,listTarget,listSink);
-                
-                mTimeLife+= L*TimeStamp;
-                listTime.add((double)L*TimeStamp);
-                
-                
-                
-                Update_Energy_Sensor(EECCcnt,ListEnergySensor,listEcri,listSensor,L);
-                
-                //showViewTest(EECCcnt);
-                int a = 2;
-                
-                
-            } else {
-                isTerminal = true;
             }
+            
 
-        } while (!isTerminal);
-        
+        }
 
     }
     
-    //Update energy
-    public void Update_Energy_Sensor(List<Integer> listEECCcnt,float listEnergySensor[], float listEcri[], List<Integer> listSensor , float L) {
-        
-        for (int i = 0; i < listEECCcnt.size(); ) {
-            float energyUsing = L * listEcri[listEECCcnt.get(i)];
-            if (energyUsing == 0) {
-                listEECCcnt.remove(i);
-            } else {
-                listEnergySensor[listEECCcnt.get(i)] -= energyUsing;
-                //Check TH het nang luong
-                if (listEnergySensor[listEECCcnt.get(i)] < listEcri[listEECCcnt.get(i)]) {
-
-                    for (int j = 0; j < listSensor.size(); j++) {
-                        if (Objects.equals(listSensor.get(j), listEECCcnt.get(i))) {
-                            listSensor.remove(j);
-                            break;
-                        }
-                    }
-
-                }
-                i++;
-            }
+    boolean CheckExitInList(List<Integer> ListCi , int sensor) {
+        for (int i =0; i < ListCi.size(); i++) {
+            if (sensor == ListCi.get(i)) return true;
         }
-        
-        
+        return false;
     }
     
-    // Check energy Sensor
-    public float LifeCycle (List<Integer> listEECCcnt, float listEnergySensor[], float listEcr[],List<Integer> listStart,List<Integer> listTarget, List<Integer> listSink) {
-        //Tinh toan duong di ngan nhat toi sink
-        List<List<Integer>> ListPathSensor = new ArrayList<>();
-        Calculate_Path_ToSink(listStart,listTarget,listEECCcnt,ListPathSensor);
-        
-        //Tinh toan nang luong tieu thu qua cac sensor;
+    List<Integer> findPloss(List<Integer> ListCi ,List<CoverageItem> listIu, List<Integer> listTarget) {
+        List<Integer> listPloss = new ArrayList<>();
 
-        Calculate_Energy_Consumption(listSink,ListPathSensor,listEcr);
-        
-        //Tinh nang luong tieu thu voi bit
-        for (int i =0;i < listEcr.length;i++) {
-            listEcr[i] *= bit;
+        boolean Check[] = new boolean[T];
+        for (int i=0; i < T;i++) {
+            Check[i] = false;
         }
-        
-        //Find gia tri nho nhat L
-        float L = 1000000000000.0f;
-        for (int i = 0;i < listEECCcnt.size();i++) {
-            int sensor = listEECCcnt.get(i);
-            if (L > (listEnergySensor[sensor]/listEcr[sensor])) {
-                L = (listEnergySensor[sensor]/listEcr[sensor]);
+        //Check ListCi
+        for (int i =0; i< ListCi.size(); i++) {
+            int sensorId = ListCi.get(i);
+            CoverageItem coverageItem = listIu.get(sensorId);
+            List<Integer> listId = coverageItem.getListCoverage();
+            for (int j =0 ; j<listId.size();j++ ) {
+                int id = listId.get(j);
+                Check[id] = true;
             }
         }
-        return L;
-
+        
+        for (int i =0; i< listTarget.size(); i++) {
+            int idtarget = listTarget.get(i);
+            if (!Check[idtarget]) listPloss.add(idtarget);
+        }
+        
+        return listPloss;
     }
-    // Tinh toan nang luong tieu hao
-    public void Calculate_Path_ToSink(List<Integer> listStart, List<Integer> listTarget, List<Integer> listEECCcnt, List<List<Integer>> listPathResult) {
-       //Create matrix Distance from ListEECCcnt
-       int N1 = listEECCcnt.size();
-       int Matrix[][] = new int[N1+1][N1+1];
-       for (int i = 0; i<listEECCcnt.size();i++) {
-           for (int j =0; j <= i;j++) {
-               if (i == j) {
-                   Matrix[i][j] = 0;
-               } else if (Distance[listEECCcnt.get(i)][listEECCcnt.get(j)] <= Rc) {
-                   Matrix[i][j] = Matrix[j][i] = 1;
-               } else {
-                   Matrix[i][j] = Matrix[j][i] = 0;
-               }
-           }
-       }
-       //Khoang cacah den Sink
-       Matrix[N1][N1] = 0;
-       for (int i = 0; i<listEECCcnt.size();i++) {
-           if (MinDistanceSink[listEECCcnt.get(i)] <= Rc) {
-               Matrix[i][N1] = Matrix[N1][i] = 1;
-           } else {
-               Matrix[i][N1] = Matrix[N1][i] = 0;
-           }
-       }
-       
-       //Using DijtraAlgorithm
-        int back[] = new int[N1+1]; //luu dinh cha
-        int weight[] = new int[N1+1];//luu trong so
-        List<Integer> path;
-        listPathResult.clear();
-        int time[] = new int[listStart.size()];
-        for (int i =0; i< listStart.size();i++) {
-            time[i] = 0;
-        }
-        //Check node start duoc bao nhieu target di qua
-        for (int i = 0; i<listTarget.size();i++) {
-            float distance = Rs;
-            int pos = 0;
-            for (int j =0; j<listStart.size();j++) {
-                if (Distance[listStart.get(j)][this.N+listTarget.get(i)] <= distance) {
-                    distance = Distance[listStart.get(j)][this.N+listTarget.get(i)];
-                    pos = j;
-                }
+    
+    boolean checkEnoughEnergy(List<Integer> tempListSensor , float ListEnergyUse[]) {
+        for (int i =0; i < tempListSensor.size(); i++) {
+            int idSen = tempListSensor.get(i);
+            float temp = ListEnergySensor[idSen] - (SensorUtility.mUnitTime * ListEnergyUse[idSen]);
+            if (temp < 0) {
+                return false;
             }
-            time[pos]++;
+        }
+        
+        return true;
+    }
+    
+    boolean removeNodeFromList(List<Integer> listS, int sensor) {
+        for (int i = 0; i < listS.size(); i++) {
+            if (listS.get(i) == sensor) {
+                listS.remove(i);
+                return true;
+            }
             
         }
-        
-        for (int i = 0; i < listStart.size(); i++) {
-            //Check TH start point is not cover
-            int result;
-            int minWeith = MaxHopper + 1;
-            path = new ArrayList<>();
-            int posEnd = N1;
-
-            result = DijkstraAlgorithm(i, posEnd, Matrix, N1+1, back, weight);
-            if (result != -1 && minWeith > weight[posEnd]) { // Ton tai duong di
-                minWeith = weight[posEnd];
-                path.clear();
-                FindListPath(i, posEnd, back, listEECCcnt, path,N1);
-                showViewTest(path);
-            }
-
-            //Add to list
-            for (int j = 0; j < time[i]; j++) {
-                listPathResult.add(path);
-            }
-            int a = 4;
-        }
+        return false;
     }
     
-//Calculate Energy Comsumpation
-    public void Calculate_Energy_Consumption(List<Integer> listSink, List<List<Integer>> listPath, float ListEcr[]) {
-        for (int i = 0; i < listPath.size(); i++) {
-            List<Integer> path = listPath.get(i);
-            if (path.size() == 1) {
-                //Chi co 1 node trung gian
-                //Tieu hoa = recive + sending + tranfer
-
-                float minDistane = 100000000000000.0f;
-                for(int j =0;j<listSink.size();j++) {
-                    if (Distance[path.get(0)][N+T+listSink.get(j)] < minDistane) {
-                        minDistane = Distance[path.get(0)][N+T+listSink.get(j)];
-                    }
-                }
-                ListEcr[path.get(0)] += Es+Er + TranferEnergy(minDistane);
-
-            } else {
-                //Tinh diem dau tien
-                int start = path.get(0);
-                ListEcr[start] += Es+ TranferEnergy(Distance[start][path.get(1)]);
-                
-                //Tinh diem trung gian
-                for (int j = 1; j < path.size()-1; j++) {
-                    ListEcr[path.get(j)] += Er + TranferEnergy(Distance[path.get(j)][path.get(j+1)]);
-                }
-                
-                //Tinh diem cuoi
-                int end = path.get(path.size()-1);
-                float minDistane = 100000000000000.0f;
-                for(int j =0;j<listSink.size();j++) {
-                    if (Distance[end][N+T+listSink.get(j)] < minDistane) {
-                        minDistane = Distance[end][N+T+listSink.get(j)];
-                    }
-                }
-                ListEcr[end] += Er + TranferEnergy(minDistane);
-            }
-        }
-
-    }
     float TranferEnergy(float distance) {
         float result = Et;
         if (distance <Do) {
@@ -574,350 +330,779 @@ public class MCLCTAlgorithm {
         }
         return result;
     }
-    
-    void FindListPath(int start, int end ,int back[],List<Integer> listEECCcnt, List<Integer> listPath,int N1) {
-        
-        if (start == end) {
-            if (end != N1) listPath.add(listEECCcnt.get(end));
-            System.out.print("sink"+ "-");
-        } else {
-            FindListPath(start, back[end], back,listEECCcnt,listPath,N1);
-            if (end != N1) listPath.add(listEECCcnt.get(end));
-            System.out.print(end+ "-");
-        }
-    }
-    //Check conect with only ListNcs
-    public boolean CheckFirstConectivity(List<Integer> listNcs, List<Integer> listSink) {
-        int count = 0;
-        for (int i = 0; i < listNcs.size(); i++) {
-            count =0;
-            for (int j = 0; j < listSink.size(); j++) {
-                if (Distance[listNcs.get(i)][N + T + listSink.get(j)] <= Rc) {
+    float CaculateEnergyConsume(List<List<Integer>> ListPath,int sensor) {
+        List<Integer> path;
+        float result =0;
+        for (int i =0 ; i < ListPath.size(); i++) {
+            path = ListPath.get(i);
+            for (int j =0; j<path.size();j++) {
+                if (j == 0 && sensor == path.get(j)) {
+                    //TH sensor la sensing node
+                    result += bit*Es;
+                    if (path.size()== 1) {
+                        result += bit*TranferEnergy(MinDistanceSink[sensor]);
+                    } else {
+                        result += bit*TranferEnergy(Distance[sensor][path.get(j+1)]);
+                    }
+                    
                     break;
-                } else {
-                   count ++; 
+                } else if (sensor == path.get(j)) {
+                    //TH sensor laf relay node
+                    result += bit*Er;
+                    if (j == path.size()-1) {
+                        result += bit*TranferEnergy(MinDistanceSink[sensor]);
+                    } else {
+                        result += bit*TranferEnergy(Distance[sensor][path.get(j+1)]);
+                    }
+                    break;
                 }
             }
-            if (count == listSink.size()) {
-                return false;
+            
+        }
+        return result;
+    }
+    
+    
+    List<Integer> FindListSensorInAllPath(List<List<Integer>> mListPath) {
+        List<Integer> listSenSor = new ArrayList<>();
+        boolean checkExit[];
+        checkExit = new boolean[N];
+        for (int i = 0; i < mListPath.size(); i++) {
+            List<Integer> path = mListPath.get(i);
+            for (int j =0; j < path.size();j++) {
+
+                checkExit[path.get(j)] = true;
+            } 
+        }
+        
+        listSenSor.clear();
+        for (int i =0; i < checkExit.length; i++) {
+            if (checkExit[i]) {
+                listSenSor.add(i);
             }
+        }
+        return listSenSor;
+    }
+    
+    public List<List<Integer>> CalculatePathConnection(List<Integer> mListCi,List<Integer> mListSrsd) {
+        List<List<Integer>> ListPath = new ArrayList<>();
+        List<EnergyItem> listEi = new ArrayList<>();
+        List<Integer> listRetrict = new ArrayList<>();
+
+        for (int i =0 ;i < mListCi.size(); i++) {
+            List<Integer> path = new ArrayList<>();
+            listRetrict.clear();
+            int senSing = mListCi.get(i);
+            path.add(senSing);
+            //TH sensing near Sink
+            if (MinDistanceSink[senSing] <= Rc) {
+                ListPath.add(path);
+                continue;
+            }
+
+            List<LoadBalanceItem> mListNeighborSensing = FindLoadBalanceSensing(senSing,mListSrsd);
+            LoadBalanceItem item = getRanDomItem(mListNeighborSensing);
+            
+            if(item == null) break;
+            int nextNode = item.getIdSr();
+            float loadNextNode = 1;
+            path.add(nextNode);
+            //Add list node retrict
+            for (int j =0 ; j < mListNeighborSensing.size(); j++) {
+                LoadBalanceItem TempItem = mListNeighborSensing.get(j);
+                listRetrict.add(TempItem.getIdSr());
+            }
+            
+            //TH relay node near Sink
+            if (MinDistanceSink[nextNode] <= Rc) {
+                ListPath.add(path);
+                continue;
+            }
+            int counHop = 2;
+            while ((MaxHopper-counHop)>0){
+                List<LoadBalanceItem> mListNeighborRelaying = FindLoadBalanceRelaying(nextNode,loadNextNode,mListSrsd, listRetrict);
+                
+                LoadBalanceItem item2 = getRanDomItem(mListNeighborRelaying);
+                if(item2 == null) break;
+                nextNode = item2.getIdSr();
+                loadNextNode /= mListNeighborRelaying.size();
+                path.add(nextNode);
+                showViewTest(path);
+                if (MinDistanceSink[nextNode] <= Rc) {
+                    ListPath.add(path);
+                    break;
+                }
+                counHop++;
+            }
+            
+        }
+        
+        if (ListPath.size() != mListCi.size()) {
+            ListPath.clear();
+        }
+        
+        return ListPath;
+    }
+    
+    LoadBalanceItem getRanDomItem(List<LoadBalanceItem> mListNeighbor) {
+        if (mListNeighbor.isEmpty()) return null;
+        double p = Math.random();
+        double cumulativeProbability = 0.0;
+        for (LoadBalanceItem item : mListNeighbor) {
+            cumulativeProbability += item.getValue();
+            if (p <= cumulativeProbability) {
+                return item;
+            }
+        }
+        return mListNeighbor.get(0);
+    }
+    
+    List<HeuristicItem> CalculateWeighList(float loadRelayNode, int sizeNei, List<Integer> listSnei) {
+        List<HeuristicItem> ListWeigh = new ArrayList<>();
+        for (int i =0; i < listSnei.size(); i++ ) {
+            HeuristicItem WeightItem = new HeuristicItem();
+            WeightItem.setId(listSnei.get(i));
+            double temp = ListEnergySensor[listSnei.get(i)]/(1000000000*((loadRelayNode/sizeNei) + 1));
+            float result = (float) Math.pow(temp, 4);
+            WeightItem.setValue(result);
+            ListWeigh.add(WeightItem);
+        }
+        return ListWeigh;
+    }
+    
+    public List<LoadBalanceItem> FindLoadBalanceRelaying(int relayNode,float loadRelayNode , List<Integer> mListSrsd, List<Integer> mListRetrict) {
+        List<Integer> ListSnei = new ArrayList<>();
+        List<LoadBalanceItem> listBalanceLoad = new ArrayList<>();
+        //Find neghbour
+        for (int i =0; i < mListSrsd.size(); i++) {
+            if (Distance[relayNode][mListSrsd.get(i)] <= Rc) {
+                int count =0;
+                for (int j =0 ; j < mListRetrict.size(); j++) {
+                    if (mListSrsd.get(i) != mListRetrict.get(j))
+                       count ++;
+                }
+                if (count == mListRetrict.size()) ListSnei.add(mListSrsd.get(i));
+            }
+        }
+        if (ListSnei.isEmpty()) return listBalanceLoad;
+        int sizeNei = ListSnei.size();
+        
+        List<HeuristicItem> mListWeight = CalculateWeighList(loadRelayNode, sizeNei, ListSnei);
+        
+        //Tim gia tri Trung binh va min cua weight
+        float minWeight = MAX_FLOAT;
+        float AverageWeight;
+        float TotalWeitht =0;
+        for (int i = 0; i< mListWeight.size(); i++) {
+            HeuristicItem item  = mListWeight.get(i);
+            if (minWeight > item.getValue()) minWeight = item.getValue();
+            TotalWeitht += item.getValue();
+        }
+        AverageWeight = TotalWeitht/(mListWeight.size());
+        
+        //Tinh total Dev weight
+        float TotalDevWeight = 0;
+        for (int i =0; i < mListWeight.size(); i++) {
+            HeuristicItem item  = mListWeight.get(i);
+            TotalDevWeight += (item.getValue() - AverageWeight - 2*minWeight);
+        }
+        // Tinh Pi
+        for (int i =0; i < mListWeight.size(); i++) {
+            HeuristicItem item  = mListWeight.get(i);
+            LoadBalanceItem loadBalanceItem = new LoadBalanceItem(relayNode, item.getId());
+            float values = (item.getValue() - AverageWeight - 2*minWeight) / TotalDevWeight;
+            loadBalanceItem.setValue(values);
+            listBalanceLoad.add(loadBalanceItem);
+        }
+        
+        return listBalanceLoad;
+    }
+    
+    public List<LoadBalanceItem> FindLoadBalanceSensing(int sensing, List<Integer> mListSrsd) {
+        List<Integer> ListSnei = new ArrayList<>();
+        List<LoadBalanceItem> listLoad = new ArrayList<>();
+        //Find neghbour
+        for (int i =0; i < mListSrsd.size(); i++) {
+            if (Distance[sensing][mListSrsd.get(i)] <= Rc) {
+                ListSnei.add(mListSrsd.get(i));
+            }
+        }
+        
+        //FindTotal
+        float Total = 0;
+        for (int i = 0; i< ListSnei.size();i++) {
+            int idSr = ListSnei.get(i);
+            Total += ((ListEnergySensor[idSr]/(1000000000*Distance[sensing][idSr])) *(ListEnergySensor[idSr]/(1000000000*Distance[sensing][idSr])));
+        }
+        
+        for (int i = 0; i< ListSnei.size();i++) {
+            int idSr = ListSnei.get(i);
+            float weigh = ((ListEnergySensor[idSr]/(1000000000*Distance[sensing][idSr])) *(ListEnergySensor[idSr]/(1000000000*Distance[sensing][idSr])));
+            LoadBalanceItem loadBalanceItem = new LoadBalanceItem(sensing, idSr);
+            loadBalanceItem.setValue(weigh/Total);
+            listLoad.add(loadBalanceItem);
+        }
+        
+        return listLoad;
+    }
+    
+
+    public List<Integer> findCOR_Heuristic_Utilized_CovRecovery(List<Integer> listSrsd, List<CoverageItem> listIu , List<Integer> listPloss, List<Integer> listSensorLoss) {
+
+        List<Integer> listSnei = new ArrayList<>();
+        
+        for (int i =0; i < listSrsd.size(); i++) {
+            for (int j =0; j<listSensorLoss.size(); j++) {
+                if (Distance[listSrsd.get(i)][listSensorLoss.get(j)] <= Rc) {
+                    listSnei.add(listSrsd.get(i));
+                    break;
+                }
+            }
+        }
+        
+        CoverageItem prebst_Iu = new CoverageItem();
+        List<Integer> listW = new ArrayList<>();
+        int prebst_node = -1;
+        while (!CheckListCoverAllTarget(listW, listIu, listPloss)) {
+            boolean enhance_flag = false;
+            prebst_node = -1;
+            for (int i = 0; i < listSnei.size(); i++) {
+                int sensor = listSnei.get(i);
+                int numCover = calculateCombineCover(listW, sensor, listIu, listPloss);
+                int numPrebst = calculateCover(prebst_Iu.getListCoverage(), listIu, listPloss);
+                //TH number coverTarget increase
+                if (numCover > numPrebst) {
+
+                    enhance_flag = true;
+
+                    //Remove prebst_node
+                    for (int j = 0; j < listW.size();) {
+                        int node = listW.get(j);
+                        if (node == prebst_node) {
+                            listW.remove(j);
+                        } else {
+                            j++;
+                        }
+                    }
+
+                    //
+                    prebst_node = sensor;
+
+                    //Gan listCi them node sensor
+                    boolean exitSensor = false;
+                    for (int j = 0; j < listW.size(); j++) {
+                        int node = listW.get(j);
+                        if (node == sensor) {
+                            exitSensor = true;
+                        }
+                    }
+                    if (!exitSensor) {
+                        listW.add(sensor);
+                    }
+
+                    prebst_Iu.getListCoverage().clear();
+                    for (int j = 0; j < listW.size(); j++) {
+                        prebst_Iu.addIdCover(listW.get(j));
+                    }
+
+                }
+            }
+
+            if (enhance_flag) {
+                //remove prebst_node
+                for (int i = 0; i < listSnei.size();) {
+                    int point = listSnei.get(i);
+                    if (point == prebst_node) {
+                        listSnei.remove(i);
+                    } else {
+                        i++;
+                    }
+                }
+
+            } else {
+                break;
+            }
+
+        }
+        //remove LisTW in listSrd
+        if (CheckListCoverAllTarget(listW, listIu, listPloss)) {
+            for (int i = 0; i < listW.size(); i++) {
+                int id = listW.get(i);
+                boolean remove = removeNodeFromList(listSrsd, id);
+            }
+        } else {
+            listW.clear();
+        }
+        
+        return listW;
+    }
+    
+    public List<List<Integer>> Coverage_Optimizing_RecursiveHeuristic(List<Integer> listSa, List<Integer> listP, List<CoverageItem> listIu) {
+        List<List<Integer>> listDs = new ArrayList<>();
+        
+        while (CheckListCoverAllTarget(listSa, listIu, listP)) {
+            //Khoi tao cac bien prebst_Iu, prebst_node, listCi
+            CoverageItem prebst_Iu = new CoverageItem();
+            List<Integer> listCi = new ArrayList<>();
+            int prebst_node = -1;
+            
+            //Kiem tra xem listCi co phu toan bo target
+            while (!CheckListCoverAllTarget(listCi, listIu, listP)) {
+                boolean enhance_flag = false;
+                prebst_node = -1;
+                for (int i =0; i< listSa.size(); i++) {
+                    int sensor = listSa.get(i);
+                    int numCover = calculateCombineCover(listCi,sensor,listIu,listP);
+                    int numPrebst = calculateCover(prebst_Iu.getListCoverage(),listIu,listP);
+                    //TH number coverTarget increase
+                    if (numCover > numPrebst) {
+                        
+                        enhance_flag = true;
+                        
+                        //Remove prebst_node
+                        for (int j =0; j< listCi.size(); ) {
+                            int node = listCi.get(j);
+                            if (node == prebst_node) {
+                                listCi.remove(j);
+                            } else {
+                                j++;
+                            }
+                        }
+                        
+                        //
+                        prebst_node = sensor;
+                        
+                        //Gan listCi them node sensor
+                        boolean exitSensor = false;
+                        for (int j =0; j< listCi.size();j++ ) {
+                            int node = listCi.get(j);
+                            if (node == sensor) {
+                                exitSensor = true;
+                            }
+                        }
+                        if (!exitSensor) listCi.add(sensor);
+                        
+                        prebst_Iu.getListCoverage().clear();
+                        for (int j =0; j< listCi.size();j++) {
+                            prebst_Iu.addIdCover(listCi.get(j));
+                        }
+                        
+                    }
+                }
+                
+                if (enhance_flag) {
+                    //remove prebst_node
+                    for (int i =0; i < listSa.size(); ) {
+                        int point = listSa.get(i);
+                        if (point == prebst_node) {
+                            listSa.remove(i);
+                        } else {
+                            i++;
+                        }
+                    }
+                    
+                } else {
+                    break;
+                }
+            }
+            
+            //Check ListCi == P
+            if (CheckListCoverAllTarget(listCi, listIu, listP)) {
+                //Add to list Ds
+                listDs.add(listCi);
+            } else {
+                //Coppy list Ci to Sa
+                for (int i =0; i < listCi.size(); i++) {
+                    boolean check = false;
+                    int sensor1 = listCi.get(i);
+                    for (int j=0 ; j < listSa.size(); j++) {
+                        if (sensor1 == listSa.get(j)) {
+                            check = true;
+                            break;
+                        }
+                    }
+                    if (!check) listSa.add(sensor1);
+                }
+                
+            }
+            
+        }
+        return listDs;
+    } 
+    
+    int calculateCombineCover(List<Integer> listCi,int sensor, List<CoverageItem> listIu,List<Integer> listP) {
+        int result =0;
+        boolean Check[] = new boolean[T];
+        for (int i=0; i < T;i++) {
+            Check[i] = false;
+        }
+        //Check ListCi
+        for (int i =0; i< listCi.size(); i++) {
+            int sensorId = listCi.get(i);
+            CoverageItem coverageItem = listIu.get(sensorId);
+            List<Integer> listId = coverageItem.getListCoverage();
+            for (int j =0 ; j<listId.size();j++ ) {
+                int id = listId.get(j);
+                Check[id] = true;
+            }
+        }
+        //Check Add sensor
+        List<Integer> listIds = listIu.get(sensor).getListCoverage();
+        for (int j =0 ; j<listIds.size();j++ ) {
+                int id = listIds.get(j);
+                Check[id] = true;
+        }
+        
+        for (int i =0; i< listP.size(); i++) {
+            int idtarget = listP.get(i);
+            if (Check[idtarget]) result++;
+        }
+        return result;
+        
+    }
+    
+    int calculateCover(List<Integer> listCi, List<CoverageItem> listIu,List<Integer> listP) {
+        int result =0;
+        boolean Check[] = new boolean[T];
+        for (int i=0; i < T;i++) {
+            Check[i] = false;
+        }
+        //Check ListCi
+        for (int i =0; i< listCi.size(); i++) {
+            int sensorId = listCi.get(i);
+            CoverageItem coverageItem = listIu.get(sensorId);
+            List<Integer> listId = coverageItem.getListCoverage();
+            for (int j =0 ; j<listId.size();j++ ) {
+                int id = listId.get(j);
+                Check[id] = true;
+            }
+        }
+        
+        for (int i =0; i< listP.size(); i++) {
+            int idtarget = listP.get(i);
+            if (Check[idtarget]) result++;
+        }
+        return result;
+        
+    }
+    
+    boolean CheckListCoverAllTarget(List<Integer> listSa,List<CoverageItem> listIu, List<Integer> listP) {
+        boolean Check[] = new boolean[T];
+        for (int i=0; i < T;i++) {
+            Check[i] = false;
+        }
+        for (int i =0; i< listSa.size(); i++) {
+            int sensorId = listSa.get(i);
+            CoverageItem coverageItem = listIu.get(sensorId);
+            List<Integer> listId = coverageItem.getListCoverage();
+            for (int j =0 ; j<listId.size();j++ ) {
+                int id = listId.get(j);
+                Check[id] = true;
+            }
+        }
+        
+        for (int i =0; i< listP.size(); i++) {
+            int idtarget = listP.get(i);
+            if (!Check[idtarget]) return false;
         }
         return true;
     }
     
-    // Check ham xem 
-    public boolean CheckConectivity(List<Integer> listStart, boolean IsCover[], List<Integer> listEECCcnt) {
-        //Create matrix Distance from ListEECCcnt
-       int N1 = listEECCcnt.size();
-       int Matrix[][] = new int[N1+1][N1+1];// Them 1 bien lu khoang cach nhỏ nhat đen bien 
-       for (int i = 0; i<listEECCcnt.size();i++) {
-           for (int j =0; j <= i;j++) {
-               if (i == j) {
-                   Matrix[i][j] = 0;
-               } else if (Distance[listEECCcnt.get(i)][listEECCcnt.get(j)] <= Rc) {
-                   Matrix[i][j] = Matrix[j][i] = 1;
-               } else {
-                   Matrix[i][j] = Matrix[j][i] = 0;
-               }
-           }
-       }
-       //Khoang cacah den Sink
-       Matrix[N1][N1] = 0;
-       for (int i = 0; i<listEECCcnt.size();i++) {
-           if (MinDistanceSink[listEECCcnt.get(i)] <= Rc) {
-               Matrix[i][N1] = Matrix[N1][i] = 1;
-           } else {
-               Matrix[i][N1] = Matrix[N1][i] = 0;
-           }
-       }
+    
+    public List<CoverageItem> CalculateListIu(List<Integer> listSensor, List<Integer> listTarget) {
+        List<CoverageItem> listIu = new ArrayList<>();
+        for (int i =0 ; i< listSensor.size(); i++) {
+            CoverageItem coverageItem = new CoverageItem(i);
+            for (int j =0; j < listTarget.size(); j++) {
+                if (Distance[listSensor.get(i)][N+listTarget.get(j)] <= Rs) {
+                    coverageItem.addIdCover(listTarget.get(j));
+                }
+            }
+            listIu.add(coverageItem);
+        }
+        return listIu;
+    }
+    
+    public List<Integer> findListSa(List<Integer> listSensor, List<CoverageItem> listIu) {
+        List<Integer> listSa = new ArrayList<>();
+        for (int i =0; i < listIu.size(); i++) {
+            if (listIu.get(i).sizeCoverage() != 0) {
+                listSa.add(listIu.get(i).getId());
+            }
+        }
+        return listSa;
+    }
+    
+    public List<Integer> findListSrsd (List<List<Integer>> listDs, List<Integer> listSensor) {
+        List<Integer> listSrsd = new ArrayList<>();
+        int N1 = listSensor.size();
+        boolean Check[] = new boolean[N1];
+        for (int i=0; i < N1 ;i++) {
+            Check[i] = false;
+        }
         
+        for (int i =0; i< listDs.size(); i++) {
+            List<Integer> listCi = listDs.get(i);
+            for (int j =0; j < listCi.size(); j++) {
+                int sensor = listCi.get(j);
+                Check[sensor] = true;
+            }
+        }
         
-        //Using DijtraAlgorithm
-        for (int i = 0; i < listStart.size(); i++) {
-            //Check TH start point is not cover
-            if (!IsCover[i]) {
-                int posEnd = N1;
-                int back[] = new int[N1 + 1]; //luu dinh cha
-                int weight[] = new int[N1 + 1];//luu trong so
-                int result = DijkstraAlgorithm(i, posEnd, Matrix, N1 + 1, back, weight);
-                if (result != -1) { // Ton tai duong di
-                    IsCover[i] = true;
+        for (int i =0; i < listSensor.size(); i++) {
+            int id = listSensor.get(i);
+            if (!Check[id]) listSrsd.add(id);
+        }
+        
+        return listSrsd;
+    }
+    
+    List<List<Integer>> Finding_AllList_ToSink(int StartSensor, List<Integer> listSrd) {
+        List<List<Integer>> ListP = new ArrayList<>();
+        List<List<Integer>> ListParent = new ArrayList<>();
+        List<List<Integer>> Pi = new ArrayList<>();
+
+        //Check nulll
+        if (listSrd.isEmpty()) {
+            return Pi;
+        }
+        //Khoi tao danh sach Pi
+
+        ListP.clear();
+        ListParent.clear();
+        //System.out.println("Target "+k + " id ="+target);
+        //
+        List<Integer> listParent1 = new ArrayList<>();
+        int num = 0;
+        for (int i = 0; i < listSrd.size(); i++) {
+            if (Distance[StartSensor][listSrd.get(i)] <= Rc) {
+                List<Integer> list = new ArrayList<>();
+                list.add(listSrd.get(i));
+                listParent1.add(listSrd.get(i));
+
+                if (MinDistanceSink[listSrd.get(i)] <= Rc) {
+                    Pi.add(list);
+                } else {
+                    ListP.add(list);
+                    num++;
+                }
+
+            }
+        }
+        for (int j = 0; j < num; j++) {
+            ListParent.add(listParent1);
+        }
+
+        while (!ListP.isEmpty()) {
+            List<Integer> headP = ListP.get(0);
+            List<Integer> headParent = ListParent.get(0);
+            int lastSensor = headP.get(headP.size() - 1); // Lay phan tu cuoi cung cua head
+
+            if (MinDistanceSink[lastSensor] <= Rc) {
+                Pi.add(headP);
+                ListP.remove(0);
+                ListParent.remove(0);
+                continue;
+            }
+
+            if (headP.size() == MaxHopper-1) {
+                ListP.remove(0);
+                ListParent.remove(0);
+            } else {
+                List<Integer> listParent = new ArrayList<>();
+                for (int j = 0; j < headParent.size(); j++) {
+                    listParent.add(headParent.get(j));
+                }
+                int count = 0;
+                for (int i = 0; i < listSrd.size(); i++) {
+                    if (lastSensor != listSrd.get(i) && Distance[lastSensor][listSrd.get(i)] <= Rc) {
+
+                        if (!checkPointExitInList(listSrd.get(i), headParent)) {
+                            // Coppy to new Array
+                            List<Integer> list = new ArrayList<>();
+                            for (int j = 0; j < headP.size(); j++) {
+                                list.add(headP.get(j));
+                            }
+                            list.add(listSrd.get(i));
+                            listParent.add(listSrd.get(i));
+                            count++;
+
+                            //Add list to P
+                            ListP.add(list);
+                        }
+
+                    }
+
+                }
+                for (int j = 0; j < count; j++) {
+                    ListParent.add(listParent);
+                }
+                ListP.remove(0);
+                ListParent.remove(0);
+
+            }
+
+        }
+
+        System.gc();
+        return Pi;
+    }
+     boolean checkPointExitInList(int point , List<Integer> listPoint ) {
+        for (int i = 0 ; i < listPoint.size(); i++) {
+            if (point == listPoint.get(i)) return true;
+        }
+        return false;
+    }
+    
+    public List<List<Integer>> CalculatePathConnection2(List<Integer> mListCi,List<Integer> mListSrsd) {
+        List<List<Integer>> ListPath = new ArrayList<>();
+        List<EnergyItem> listEi = new ArrayList<>();
+
+
+        for (int i =0 ;i < mListCi.size(); i++) {
+            List<Integer> path = new ArrayList<>();
+
+            int senSing = mListCi.get(i);
+            path.add(senSing);
+            System.out.println(" Point "+i+ " : id ="+senSing);
+            //TH sensing near Sink
+            if (MinDistanceSink[senSing] <= Rc) {
+                ListPath.add(path);
+                continue;
+            }
+            List<List<Integer>> mListToSink = Finding_AllList_ToSink(senSing, mListSrsd);
+            System.out.println("  List path to sink "+mListToSink.size());
+            //Find List Snei
+            List<Integer> mListSnei = new ArrayList<>();
+            for (int j = 0; j< mListToSink.size(); j++) {
+                List<Integer> tempList = mListToSink.get(j);
+                if (!checkPointExitInList(tempList.get(0), mListSnei)) {
+                    mListSnei.add(tempList.get(0));
+                }
+            }
+            
+            List<LoadBalanceItem> mListNeighborSensing = FindLoadBalanceSensing2(senSing,mListSnei);
+            LoadBalanceItem item = getRanDomItem(mListNeighborSensing);
+            
+            if(item == null) break;
+            int nextNode = item.getIdSr();
+            float loadNextNode = 1;
+            path.add(nextNode);
+            
+            //TH relay node near Sink
+            if (MinDistanceSink[nextNode] <= Rc) {
+                ListPath.add(path);
+                continue;
+            }
+            int counHop = 2;
+            int count =0;
+            while ((MaxHopper - counHop) > 0) {
+                //Find List Snei
+                count++;
+                List<Integer> mListSnei2 = new ArrayList<>();
+                mListSnei2.clear();
+                for (int j = 0; j < mListToSink.size(); j++) {
+                    List<Integer> tempList = mListToSink.get(j);
+                    if (tempList.size() > count && tempList.get(count - 1) == nextNode) {
+                        if (!checkPointExitInList(tempList.get(count), mListSnei2)) {
+                            mListSnei2.add(tempList.get(count));
+                        }
+                    }
+                }
+                
+                List<LoadBalanceItem> mListNeighborRelaying = FindLoadBalanceRelaying2(nextNode, loadNextNode, mListSnei2);
+
+                LoadBalanceItem item2 = getRanDomItem(mListNeighborRelaying);
+                if (item2 == null) {
                     break;
                 }
-
-            }
-        }
-        
-        // Check is connectivity
-        int count = 0;
-        for (int i = 0; i < listStart.size(); i++) {
-            if (IsCover[i]) {
-                count++;
-            } else {
-                break;
-            }
-        }
-         
-        if (count == listStart.size()) return true;
-        return false;
-        
-    }
-    int findPostion(List<Integer> list , int value) {
-        for (int i =0; i< list.size();i++) {
-            if (value == list.get(i)) {
-                return i;
-            }
-        }
-        return 0;
-    }
-     
-    int DijkstraAlgorithm(int start, int end, int Matrix[][],int N, int back[], int weight[]) {
-
-        int mark[] = new int[N];//danh dau dinh
-        
-        int st = start;
-        
-        //Khoi tao gia tri
-        for (int i = 0; i<N;i++) {
-            back[i] = -1;
-            weight[i] = MAX_INTERGER;
-            mark[i] = 0;
-        }
-        
-        //Xuat phat tu dinh dau tien
-        back[start] = 0;
-        weight[start] = 0;
-        
-        //Kiem tra do thi co lien thong ko
-        int connect;
-        do {
-            //Gan connect = -1;
-            connect = -1;
-            int min = MAX_INTERGER;
-            //Lan luot duyet qua tat ca ca diem cau do thi
-            for (int j =0; j <N;j++) {
-                if (mark[j] == 0) { //Dinh chua duoc danh dau
-                    if (Matrix[start][j] != 0 && weight[j] > weight[start] + Matrix[j][start]) {
-                        //Update weight and back
-                        weight[j] = weight[start] + Matrix[j][start];
-                        //Luu dinh cah
-                        back[j] = start;
-                    }
-                    
-                    //Dua vao mang weight tim duong di ngan nhat hien tai
-                    if (min > weight[j]) {
-                        min = weight[j];
-                        //Dua vao bien connect t co quyet dinh di tiep hay ko
-                        connect = j;
-                    }
+                nextNode = item2.getIdSr();
+                loadNextNode /= mListNeighborRelaying.size();
+                path.add(nextNode);
+                //showViewTest(path);
+                if (MinDistanceSink[nextNode] <= Rc) {
+                    ListPath.add(path);
+                    break;
                 }
-                
-                
+                counHop++;
             }
-            if (connect != -1) {
-                start = connect;
-                mark[start] = 1;
-            }
-        } while (connect != -1 && start != end);
-        
-        
-        //In ket qua
-        if (connect != -1 && weight[end] <= MaxHopper-1) {
-            System.out.println("Weight :" + weight[end]);
-            printPath(st, end, back);
-            return weight[end]+1;
-        } else {
-            System.out.println("Ko ket noi");
-            return -1;
+            
         }
+        
+        if (ListPath.size() != mListCi.size()) {
+            ListPath.clear();
+        }
+        
+        return ListPath;
+    }
+    
+    public List<LoadBalanceItem> FindLoadBalanceRelaying2(int relayNode,float loadRelayNode , List<Integer> ListSnei) {
+        List<LoadBalanceItem> listBalanceLoad = new ArrayList<>();
+        //Find neghbour
 
-    }
-    void printPath(int start, int end ,int back[]) {
-        if (start == end) {
-            System.out.print(end+ "->");
-        } else {
-            printPath(start, back[end], back);
-            System.out.print(end+ "->");
-        }
-    }
-    
-    boolean CheckNodeExit(List<Integer> list, int node) {
-        for (int i = 0; i < list.size(); i++) {
-            if(list.get(i) == node) return true;
-        }
-        return false;
-    }
-    // Calculate Covering heuristic
-     public void Calculate_Cov_Heuristic(List<Integer> listTaget, List<Integer> listSensor,List<HeuristicItem> listCovHeuristic) {
-         List<Integer> listTotalCoverTarget = new ArrayList<>();
-         listTotalCoverTarget.clear();
-         for (int i = 0;i<listTaget.size();i++) {
-             int result = Total_CoverTaget(listSensor,listTaget.get(i));
-             listTotalCoverTarget.add(result);
-         }
-         
-         //Calculate Cov Heuristic
-         listCovHeuristic.clear();
-         for (int i = 0;i < listSensor.size(); i++) {
-             HeuristicItem heuristicItem = new HeuristicItem();
-             heuristicItem.setId(listSensor.get(i));
-             float kq = 0;
-             for(int j = 0; j < listTaget.size();j++) {
-                 if (Distance[listSensor.get(i)][N+listTaget.get(j)] <= Rs) {
-                     kq += (1.0/(listTotalCoverTarget.get(j)));
-                 }
-             }
-             heuristicItem.setValue(kq);
-             listCovHeuristic.add(heuristicItem);
-         }
-     }
-     public int Total_CoverTaget(List<Integer> listSensor, int target) {
-         int result = 0;
-         for (int i = 0; i< listSensor.size(); i++ ) {
-             if (Distance[listSensor.get(i)][N+target] <= Rs) {
-                result++; 
-             }
-         }
-         return result;
-     }
-    
-     // Calculate Coverager Ratio 
-     public int Calculate_Coverage_Ratio(List<Integer> listEECCcnt, List<Integer> listTarget) {
-         int result  = 0;
-         for (int i  = 0; i< listTarget.size();i++) {
-             for (int j =0;j < listEECCcnt.size();j++) {
-                 if (Distance[listEECCcnt.get(j)][N+listTarget.get(i)] <= Rs) {
-                     result++;
-                     break;
-                 }
-             }
-         }
-         return result;
-     }
-     
-     //Find current_hoppper //Chua check
-     public void Find_Current_Hoppers(List<Integer> listRelaySensor,List<Integer> listSink, List<Integer> listNCR, List<Integer> listCurrenHopper,List<Integer> listNCS) {
-         listNCR.clear();
-         listCurrenHopper.clear();
-         for (int i =0; i< listRelaySensor.size();) {
-            // int countSink =0;
-             int countNcs =0;
-//             for (int j = 0;j < listSink.size();j++) {
-//                 if (Distance[listRelaySensor.get(i)][N+T+listSink.get(j)] <= Rc) {
-//
-//                     break;
-//                 } else {
-//                     countSink++;
-//                 }
-//             }
-             
-             for (int j=0; j < listNCS.size();j++) {
-                 if (Distance[listRelaySensor.get(i)][listNCS.get(j)] <= Rc) {
-                     break;
-                 } else {
-                     countNcs++;
-                 }
-             }
-                     
-             if (countNcs == listNCS.size()) {
-                 listNCR.add(listRelaySensor.get(i));
-                 listRelaySensor.remove(i);
-             } else {
-                 listCurrenHopper.add(listRelaySensor.get(i));
-                 i++;
-             }
-         }
-         
-     }
-    
-     // Calcualate Connect Heuristic 
-     public void Calculate_Connect_Heuristic(List<Integer> listSensor, List<Integer> listSink, List<Integer> listCurrentHopper, List<Integer> listNCS, List<Integer> listNCR ,List<HeuristicItem> listConnectHeuristic,List<Integer> previous_hopper) {
-         List<Integer> listTotalCoverNCS = new ArrayList<>();
-         listTotalCoverNCS.clear();
-         for (int i = 0;i<previous_hopper.size();i++) {
-             int result = Total_CoverNCS(listSensor,previous_hopper.get(i));
-             listTotalCoverNCS.add(result);
-         }
-         
-         //Calculate Connect Heuristic
-         listConnectHeuristic.clear();
-         for (int i = 0; i < listCurrentHopper.size(); i++){
-             HeuristicItem heuristicItem = new HeuristicItem();
-             heuristicItem.setId(listCurrentHopper.get(i));
-             float kq = 0;
-             for(int j = 0; j < previous_hopper.size();j++) {
-                 if (Distance[listCurrentHopper.get(i)][previous_hopper.get(j)] <= Rc) {
-                     kq += (1.0/(listTotalCoverNCS.get(j)));
-                 }
-             }
-             
-             //Devider for min || Srm- Sink||
-             float minValue  = Float.MAX_VALUE;
-             for (int j =0; j < listSink.size(); j++) {
-                 if (minValue > Distance[listCurrentHopper.get(i)][N+T+listSink.get(j)]) {
-                     minValue = Distance[listCurrentHopper.get(i)][N+T+listSink.get(j)];
-                 }
-             }
-             //Check case minValue == 0
-             if (minValue <= 0.1) {
-                 minValue = 0.1f;
-             }
-             kq = kq/minValue;
-             heuristicItem.setValue(kq);
-             listConnectHeuristic.add(heuristicItem);
-         }
-         
-         //Delete listConnectHeuristic == 0;
-         for (int i = 0; i < listConnectHeuristic.size();) {
-             if (listConnectHeuristic.get(i).getValue() == 0.000000000f) {
-                 listConnectHeuristic.remove(i);
-       //          listNCR.add(listCurrentHopper.get(i));
-                 listCurrentHopper.remove(i);
-                 
-             } else i++;
-
-         }
-         
-     }
-     
-     public int Total_CoverNCS(List<Integer> listSensor, int ncs) {
-         int result = 0;
-         for (int i = 0; i< listSensor.size(); i++ ) {
-             if (Distance[listSensor.get(i)][ncs] <= Rc) {
-                result++; 
-             }
-         }
-         return result;
-     }
-     
-    public List<Integer> Hop_Finder (List<Integer> listNCR, List<Integer> listCurrentHopper) {
-        List<Integer> listNextHopper = new ArrayList<>();
+        if (ListSnei.isEmpty()) return listBalanceLoad;
+        int sizeNei = ListSnei.size();
         
-         for (int i = 0; i< listCurrentHopper.size();i++) {
-             for (int j = 0; j < listNCR.size(); ) {
-                 if (Distance[listCurrentHopper.get(i)][listNCR.get(j)] <= Rc) {
-                     listNextHopper.add(listNCR.get(j));
-                     listNCR.remove(j);
-                 } else j++;
-             }
-         }
-         
-         return listNextHopper;
+        List<HeuristicItem> mListWeight = CalculateWeighList(loadRelayNode, sizeNei, ListSnei);
+        
+        //Tim gia tri Trung binh va min cua weight
+        float minWeight = MAX_FLOAT;
+        float AverageWeight;
+        float TotalWeitht =0;
+        for (int i = 0; i< mListWeight.size(); i++) {
+            HeuristicItem item  = mListWeight.get(i);
+            if (minWeight > item.getValue()) minWeight = item.getValue();
+            TotalWeitht += item.getValue();
+        }
+        AverageWeight = TotalWeitht/(mListWeight.size());
+        
+        //Tinh total Dev weight
+        float TotalDevWeight = 0;
+        for (int i =0; i < mListWeight.size(); i++) {
+            HeuristicItem item  = mListWeight.get(i);
+            TotalDevWeight += (item.getValue() - AverageWeight - 2*minWeight);
+        }
+        // Tinh Pi
+        for (int i =0; i < mListWeight.size(); i++) {
+            HeuristicItem item  = mListWeight.get(i);
+            LoadBalanceItem loadBalanceItem = new LoadBalanceItem(relayNode, item.getId());
+            float values = (item.getValue() - AverageWeight - 2*minWeight) / TotalDevWeight;
+            loadBalanceItem.setValue(values);
+            listBalanceLoad.add(loadBalanceItem);
+        }
+        
+        return listBalanceLoad;
     }
-     
+    
+        public List<LoadBalanceItem> FindLoadBalanceSensing2(int sensing, List<Integer> ListSnei) {
+        List<LoadBalanceItem> listLoad = new ArrayList<>();
+        //FindTotal
+        float Total = 0;
+        for (int i = 0; i< ListSnei.size();i++) {
+            int idSr = ListSnei.get(i);
+            Total += ((ListEnergySensor[idSr]/(1000000000*Distance[sensing][idSr])) *(ListEnergySensor[idSr]/(1000000000*Distance[sensing][idSr])));
+        }
+        
+        for (int i = 0; i< ListSnei.size();i++) {
+            int idSr = ListSnei.get(i);
+            float weigh = ((ListEnergySensor[idSr]/(1000000000*Distance[sensing][idSr])) *(ListEnergySensor[idSr]/(1000000000*Distance[sensing][idSr])));
+            LoadBalanceItem loadBalanceItem = new LoadBalanceItem(sensing, idSr);
+            loadBalanceItem.setValue(weigh/Total);
+            listLoad.add(loadBalanceItem);
+        }
+        
+        return listLoad;
+    }
+    
     public void CoppyToListSensor() {
-        mListofListSensor.clear();
-        for (int i =0;i<NDEECCcnt.size();i++ ) {
-            List<Integer> temp = NDEECCcnt.get(i);
-            List<NodeItem> tempNodeList = new ArrayList<>();
-            for (int j =0;j<temp.size();j++) {
-               tempNodeList.add(mListSensorNodes.get(temp.get(j)));
-            }
-            mListofListSensor.add(tempNodeList);
+        mListofListCMLCT.clear();
+        for (int i =0;i<mListAllResultPath.size();i++ ) {
+            List<List<Integer>> temp = mListAllResultPath.get(i);
+            mListofListCMLCT.add(temp);
         }
-        mListofListTime = listTime;
+        mListofListTime = mListTimeLife;
         
-         //Show log Energy ofsensor
+        //Show log Energy ofsensor
         System.out.println();
         System.out.println("Nang luong tieu thu cua sensor");
         for (int i =0; i < ListEnergySensor.length; i++) {
@@ -944,15 +1129,11 @@ public class MCLCTAlgorithm {
     }    
     
     public void freeData() {
-        NDEECCcnt = null;
-        Cov_Heuristic = null;
-        Connect_Heuristic = null;
-        ListNcs = null;
-        ListNcr = null;
-        CurrentHopper = null;
+
         listTime = null;
         Point = null;
         Distance = null;
         ListEnergySensor = null;
     }
+
 }
