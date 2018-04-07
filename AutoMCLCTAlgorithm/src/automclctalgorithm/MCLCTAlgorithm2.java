@@ -6,19 +6,19 @@
 package automclctalgorithm;
 
 import static automclctalgorithm.SensorUtility.*;
+import static automclctalgorithm.SensorUtility.mListSinkNodes;
+import static automclctalgorithm.SensorUtility.mListTargetNodes;
+import static automclctalgorithm.SensorUtility.mListofListCMLCT;
+import static automclctalgorithm.SensorUtility.mListofListTime;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 
 /**
  *
  * @author Hieu
  */
-public class MCLCTAlgorithm {
-    
-    public float Distance[][];// Matrix distance between two nodes
+public class MCLCTAlgorithm2 {
+ public float Distance[][];// Matrix distance between two nodes
     public float MinDistanceSink[];// Matrix distance between two nodes
     public float Target[][];// Target nodes
     public float Point[][];// Total nodes
@@ -44,7 +44,7 @@ public class MCLCTAlgorithm {
     int TP; // Total points (Contain Sensor , Sink, Target )
     int T;//Number of Tagert Nodes
 
-    public MCLCTAlgorithm() {
+    public MCLCTAlgorithm2() {
         
     }
      
@@ -179,7 +179,7 @@ public class MCLCTAlgorithm {
             int a = 0;
 
         }
-        List<Integer> mListSrsd = findListSrsd(mListDs, listSensor);
+        List<Integer> mListSrsd = findListSrsd(listSensor);
 
         //Vong lap lay tung Ci
         for (int i = 0; i < mListDs.size(); i++) {
@@ -234,6 +234,8 @@ public class MCLCTAlgorithm {
                         if (exitInCi) {
                             ListSensorLoss.add(idSensor);
                         }
+                        //Mot so node trong listDs duoc dung
+                        removeNodeFromListDS(mListDs, idSensor);
                     }
                 }
 
@@ -320,6 +322,20 @@ public class MCLCTAlgorithm {
             
         }
         return false;
+    }
+    
+    void removeNodeFromListDS(List<List<Integer>> listDs, int sensor) {
+        for (int i = 0; i < listDs.size(); i++) {
+            List<Integer> listS = listDs.get(i);
+            for (int j = 0; j < listS.size(); j++) {
+                if (listS.get(j) == sensor) {
+                    listS.remove(j);
+
+                }
+            }
+
+        }
+        return;
     }
     
     float TranferEnergy(float distance) {
@@ -569,7 +585,7 @@ public class MCLCTAlgorithm {
             prebst_node = -1;
             for (int i = 0; i < listSnei.size(); i++) {
                 int sensor = listSnei.get(i);
-                int numCover = calculateCombineCover(listW, sensor, listIu, listPloss);
+                int numCover = calculateCombineCover2(listW,prebst_node, sensor, listIu, listPloss);
                 int numPrebst = calculateCover(prebst_Iu.getListCoverage(), listIu, listPloss);
                 //TH number coverTarget increase
                 if (numCover > numPrebst) {
@@ -653,7 +669,7 @@ public class MCLCTAlgorithm {
                 prebst_node = -1;
                 for (int i =0; i< listSa.size(); i++) {
                     int sensor = listSa.get(i);
-                    int numCover = calculateCombineCover(listCi,sensor,listIu,listP);
+                    int numCover = calculateCombineCover2(listCi,prebst_node,sensor,listIu,listP);
                     int numPrebst = calculateCover(prebst_Iu.getListCoverage(),listIu,listP);
                     //TH number coverTarget increase
                     if (numCover > numPrebst) {
@@ -761,6 +777,43 @@ public class MCLCTAlgorithm {
         return result;
         
     }
+    int calculateCombineCover2(List<Integer> listCii,int prebst,int sensor, List<CoverageItem> listIu,List<Integer> listP) {
+        int result =0;
+        List<Integer> listCi = new ArrayList<>();
+        
+        for (int i =0; i < listCii.size(); i++) {
+            if (listCii.get(i) != prebst) {
+                listCi.add(listCii.get(i));
+            }
+        }
+        boolean Check[] = new boolean[T];
+        for (int i=0; i < T;i++) {
+            Check[i] = false;
+        }
+        //Check ListCi
+        for (int i =0; i< listCi.size(); i++) {
+            int sensorId = listCi.get(i);
+            CoverageItem coverageItem = listIu.get(sensorId);
+            List<Integer> listId = coverageItem.getListCoverage();
+            for (int j =0 ; j<listId.size();j++ ) {
+                int id = listId.get(j);
+                Check[id] = true;
+            }
+        }
+        //Check Add sensor
+        List<Integer> listIds = listIu.get(sensor).getListCoverage();
+        for (int j =0 ; j<listIds.size();j++ ) {
+                int id = listIds.get(j);
+                Check[id] = true;
+        }
+        
+        for (int i =0; i< listP.size(); i++) {
+            int idtarget = listP.get(i);
+            if (Check[idtarget]) result++;
+        }
+        return result;
+        
+    }
     
     int calculateCover(List<Integer> listCi, List<CoverageItem> listIu,List<Integer> listP) {
         int result =0;
@@ -834,25 +887,12 @@ public class MCLCTAlgorithm {
         return listSa;
     }
     
-    public List<Integer> findListSrsd (List<List<Integer>> listDs, List<Integer> listSensor) {
+    public List<Integer> findListSrsd (List<Integer> listSensor) {
         List<Integer> listSrsd = new ArrayList<>();
-        int N1 = listSensor.size();
-        boolean Check[] = new boolean[N1];
-        for (int i=0; i < N1 ;i++) {
-            Check[i] = false;
-        }
-        
-        for (int i =0; i< listDs.size(); i++) {
-            List<Integer> listCi = listDs.get(i);
-            for (int j =0; j < listCi.size(); j++) {
-                int sensor = listCi.get(j);
-                Check[sensor] = true;
-            }
-        }
-        
+       
         for (int i =0; i < listSensor.size(); i++) {
             int id = listSensor.get(i);
-            if (!Check[id]) listSrsd.add(id);
+            listSrsd.add(id);
         }
         
         return listSrsd;
@@ -876,6 +916,7 @@ public class MCLCTAlgorithm {
         List<Integer> listParent1 = new ArrayList<>();
         int num = 0;
         for (int i = 0; i < listSrd.size(); i++) {
+            if (StartSensor == listSrd.get(i)) continue;
             if (Distance[StartSensor][listSrd.get(i)] <= Rc) {
                 List<Integer> list = new ArrayList<>();
                 list.add(listSrd.get(i));
@@ -916,6 +957,7 @@ public class MCLCTAlgorithm {
                 }
                 int count = 0;
                 for (int i = 0; i < listSrd.size(); i++) {
+                    if (StartSensor == listSrd.get(i)) continue;
                     if (lastSensor != listSrd.get(i) && Distance[lastSensor][listSrd.get(i)] <= Rc) {
 
                         if (!checkPointExitInList(listSrd.get(i), headParent)) {

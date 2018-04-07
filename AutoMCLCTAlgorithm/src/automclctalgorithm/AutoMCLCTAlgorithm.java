@@ -30,10 +30,10 @@ public class AutoMCLCTAlgorithm {
     
     public static void main(String[] args) {
         // TODO code application logic here
-        MCLCTAlgorithm algorithm = new MCLCTAlgorithm();
+        MCLCTAlgorithm2 algorithm = new MCLCTAlgorithm2();
         //initData();
         //Chay test case tu 6 den 10
-        for (int i = 14; i <= 14; i++) {
+        for (int i = 13; i <= 13; i++) {
             try {
                 //Cai dat ten File
                 String filename = "test"+i+".INP";
