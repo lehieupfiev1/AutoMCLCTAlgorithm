@@ -898,10 +898,18 @@ public class MCLCTAlgorithm2 {
         return listSrsd;
     }
     
-    List<List<Integer>> Finding_AllList_ToSink(int StartSensor, List<Integer> listSrd) {
+    List<List<Integer>> Finding_AllList_ToSink(int StartSensor, List<Integer> listTotalSrd) {
         List<List<Integer>> ListP = new ArrayList<>();
         List<List<Integer>> ListParent = new ArrayList<>();
         List<List<Integer>> Pi = new ArrayList<>();
+        
+        //Create listSrd
+        List<Integer> listSrd = new ArrayList<>();
+        for (int i =0; i < listTotalSrd.size(); i++) {
+            if (Distance[StartSensor][listTotalSrd.get(i)] <= MaxHopper*Rc) {
+                listSrd.add(listTotalSrd.get(i));
+            }
+        }
 
         //Check nulll
         if (listSrd.isEmpty()) {

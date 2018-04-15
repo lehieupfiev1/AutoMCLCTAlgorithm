@@ -33,7 +33,7 @@ public class AutoMCLCTAlgorithm {
         MCLCTAlgorithm2 algorithm = new MCLCTAlgorithm2();
         //initData();
         //Chay test case tu 6 den 10
-        for (int i = 13; i <= 13; i++) {
+        for (int i = 8; i <= 8; i++) {
             try {
                 //Cai dat ten File
                 String filename = "test"+i+".INP";
