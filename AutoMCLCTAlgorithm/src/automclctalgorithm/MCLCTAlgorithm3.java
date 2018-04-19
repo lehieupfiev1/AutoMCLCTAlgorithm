@@ -5,7 +5,7 @@
  */
 package automclctalgorithm;
 
-import static automclctalgorithm.SensorUtility.*;
+import static automclctalgorithm.SensorUtility.mListSensorNodes;
 import static automclctalgorithm.SensorUtility.mListSinkNodes;
 import static automclctalgorithm.SensorUtility.mListTargetNodes;
 import static automclctalgorithm.SensorUtility.mListofListCMLCT;
@@ -16,9 +16,10 @@ import java.util.List;
 /**
  *
  * @author Hieu
+ * Coppy from MCLCT2
  */
-public class MCLCTAlgorithm2 {
- public float Distance[][];// Matrix distance between two nodes
+public class MCLCTAlgorithm3 {
+    public float Distance[][];// Matrix distance between two nodes
     public float MinDistanceSink[];// Matrix distance between two nodes
     public float Target[][];// Target nodes
     public float Point[][];// Total nodes
@@ -44,7 +45,7 @@ public class MCLCTAlgorithm2 {
     int TP; // Total points (Contain Sensor , Sink, Target )
     int T;//Number of Tagert Nodes
 
-    public MCLCTAlgorithm2() {
+    public MCLCTAlgorithm3() {
         
     }
      
