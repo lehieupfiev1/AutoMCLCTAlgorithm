@@ -12,6 +12,7 @@ import static automclctalgorithm.SensorUtility.mListofListCMLCT;
 import static automclctalgorithm.SensorUtility.mListofListTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  *
@@ -182,6 +183,9 @@ public class MCLCTAlgorithm3 {
         }
         List<Integer> mListSrsd = findListSrsd(listSensor);
 
+        //Creat boollean check Target
+        boolean checkTarget[] = new boolean[listTarget.size()];
+        
         //Vong lap lay tung Ci
         for (int i = 0; i < mListDs.size(); i++) {
             //Get list Ci
@@ -192,7 +196,30 @@ public class MCLCTAlgorithm3 {
             showViewTest(mListCi);
             
             while (CheckListCoverAllTarget(mListCi, mListIu, listTarget)) {
+                //reset check target
+                for (int j =0; j< checkTarget.length; j++){
+                    checkTarget[j] = false;
+                }
+                int numListPath[] = new int[mListCi.size()];
+                for (int j = 0; j < numListPath.length; j++) {
+                    numListPath[j] = 0;
+                }
                 
+                //Kiem tra Ci duoc bao phu boi bao nhieu target
+                for (int j = 0; j < mListCi.size(); j++) {
+                    int sensingPoint = mListCi.get(j);
+                    for (int k = 0; k < listTarget.size(); k++) {
+                        if (!checkTarget[k] && Distance[sensingPoint][N + k] <= Rs) {
+                            checkTarget[k] = true;
+                            int nu = numListPath[j];
+                            nu++;
+                            numListPath[j] = nu;
+                        }
+                    }
+
+                }
+                
+                //Find list Path
                 List<List<Integer>> mListPath = CalculatePathConnection2(mListCi, mListSrsd);
                 if (mListPath.isEmpty()) {
                     break;
@@ -207,7 +234,7 @@ public class MCLCTAlgorithm3 {
                 //Calculate eneruse for 
                 for (int j = 0; j < tempListSensor.size(); j++) {
                     int idSen = tempListSensor.get(j);
-                    ListEnergyUse[idSen] = CaculateEnergyConsume(mListPath, idSen);
+                    ListEnergyUse[idSen] = CaculateEnergyConsume(mListPath,numListPath, idSen);
                 }
                 // Find minListEnerUse
                 boolean isEnoughtEnergy = checkEnoughEnergy(tempListSensor, ListEnergyUse);
@@ -348,29 +375,30 @@ public class MCLCTAlgorithm3 {
         }
         return result;
     }
-    float CaculateEnergyConsume(List<List<Integer>> ListPath,int sensor) {
+    float CaculateEnergyConsume(List<List<Integer>> ListPath,int numberListPath[], int sensor) {
         List<Integer> path;
         float result =0;
         for (int i =0 ; i < ListPath.size(); i++) {
             path = ListPath.get(i);
+            int num = numberListPath[i];
             for (int j =0; j<path.size();j++) {
                 if (j == 0 && sensor == path.get(j)) {
                     //TH sensor la sensing node
-                    result += bit*Es;
+                    result += bit*Es*num;
                     if (path.size()== 1) {
-                        result += bit*TranferEnergy(MinDistanceSink[sensor]);
+                        result += (bit*TranferEnergy(MinDistanceSink[sensor]))*num;
                     } else {
-                        result += bit*TranferEnergy(Distance[sensor][path.get(j+1)]);
+                        result += (bit*TranferEnergy(Distance[sensor][path.get(j+1)]))*num;
                     }
                     
                     break;
                 } else if (sensor == path.get(j)) {
                     //TH sensor laf relay node
-                    result += bit*Er;
+                    result += bit*Er*num;
                     if (j == path.size()-1) {
-                        result += bit*TranferEnergy(MinDistanceSink[sensor]);
+                        result += (bit*TranferEnergy(MinDistanceSink[sensor]))*num;
                     } else {
-                        result += bit*TranferEnergy(Distance[sensor][path.get(j+1)]);
+                        result += (bit*TranferEnergy(Distance[sensor][path.get(j+1)]))*num;
                     }
                     break;
                 }
@@ -496,7 +524,7 @@ public class MCLCTAlgorithm3 {
             if (Distance[relayNode][mListSrsd.get(i)] <= Rc) {
                 int count =0;
                 for (int j =0 ; j < mListRetrict.size(); j++) {
-                    if (mListSrsd.get(i) != mListRetrict.get(j))
+                    if (!Objects.equals(mListSrsd.get(i), mListRetrict.get(j)))
                        count ++;
                 }
                 if (count == mListRetrict.size()) ListSnei.add(mListSrsd.get(i));

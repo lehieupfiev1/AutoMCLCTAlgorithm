@@ -26,14 +26,15 @@ public class AutoMCLCTAlgorithm {
      */
    public static long timeRuning;
     public static double timeLifeOn;
-    public static String mPath = "E:\\HIEU\\CAO HOC\\SensorSimulationProject\\SensorDemo\\";
+    public static String mPath = "E:\\HIEU\\CAO HOC\\Testcase\\";
     
     public static void main(String[] args) {
         // TODO code application logic here
-        MCLCTAlgorithm2 algorithm = new MCLCTAlgorithm2();
+        //MCLCTAlgorithm2 algorithm = new MCLCTAlgorithm2();
+        MCLCTAlgorithm3 algorithm = new MCLCTAlgorithm3();
         //initData();
         //Chay test case tu 6 den 10
-        for (int i = 8; i <= 8; i++) {
+        for (int i = 13; i <= 13; i++) {
             try {
                 //Cai dat ten File
                 String filename = "test"+i+".INP";
