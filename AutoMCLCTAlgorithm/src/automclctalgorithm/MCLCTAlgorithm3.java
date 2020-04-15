@@ -10,9 +10,12 @@ import static automclctalgorithm.SensorUtility.mListSinkNodes;
 import static automclctalgorithm.SensorUtility.mListTargetNodes;
 import static automclctalgorithm.SensorUtility.mListofListCMLCT;
 import static automclctalgorithm.SensorUtility.mListofListTime;
+
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
 
 /**
  *
@@ -1195,8 +1198,36 @@ public class MCLCTAlgorithm3 {
             System.out.print(""+energy/1000000000+" ");        
             
         }
+        //ConverListPathFollowTaget
+        convertMCLCTfollowTarget();
         System.out.println();
     }
+    
+    void convertMCLCTfollowTarget() {
+		List<List<List<Integer>>> ListofListResult = new ArrayList<>(); 
+		for (int i =0; i < mListofListCMLCT.size();i++) {
+			//
+			List<List<Integer>> ListResultCoverSet = new ArrayList<>();
+			List<List<Integer>> ListCoverSet = mListofListCMLCT.get(i);
+			for (int j =0; j< T; j++) {
+				for (int k =0; k < ListCoverSet.size(); k++) {
+					List<Integer> path = ListCoverSet.get(k);
+					if (Distance[path.get(0)][N +j] <= Rs) {
+						ListResultCoverSet.add(path);
+						break;
+					}
+					
+				}
+				
+			}
+			ListofListResult.add(ListResultCoverSet);
+			System.out.println("converMCLCTfollowTarget CoverSet="+i+ " Size="+ListofListResult.get(i).size());
+			
+		}
+		
+		//Reurn result
+		mListofListCMLCT = ListofListResult;
+	}
     
     public void showViewTest(List<Integer> listSensor) {                                            
         // TODO add your handling code here:
